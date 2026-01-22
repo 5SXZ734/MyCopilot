@@ -4,10 +4,29 @@
 #include <QScreen>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QShortcut>
+#include <QAbstractNativeEventFilter>
+#include <QCoreApplication>
+
 
 #ifdef Q_OS_WIN
   #define WIN32_LEAN_AND_MEAN
   #include <windows.h>
+
+class GlobalHotkeyFilter : public QAbstractNativeEventFilter
+{
+public:
+    bool nativeEventFilter(const QByteArray& /*eventType*/, void* message, qintptr* /*result*/) override
+    {
+        MSG* msg = static_cast<MSG*>(message);
+        if (msg->message == WM_HOTKEY) {
+            QCoreApplication::quit();
+            return true;
+        }
+        return false;
+    }
+};
+
 #endif
 
 class OverlayWindow : public QWidget
@@ -83,5 +102,23 @@ int main(int argc, char* argv[])
     OverlayWindow w("Click-through overlay.\nYou should be able to click things UNDER this window.");
     w.show();
 
+#ifdef Q_OS_WIN
+    GlobalHotkeyFilter filter;
+    app.installNativeEventFilter(&filter);
+
+    // Ctrl+Shift+Q
+    constexpr int HOTKEY_ID = 1;
+    if (!RegisterHotKey(nullptr, HOTKEY_ID, MOD_CONTROL | MOD_SHIFT, 'Q')) {
+        // Optional: fallback if already taken by something else
+        // e.g. try Ctrl+Alt+Q
+        RegisterHotKey(nullptr, HOTKEY_ID, MOD_CONTROL | MOD_ALT, 'Q');
+    }
+
+    const int rc = app.exec();
+
+    UnregisterHotKey(nullptr, HOTKEY_ID);
+    return rc;
+#else
     return app.exec();
+#endif
 }
